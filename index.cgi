@@ -433,17 +433,7 @@ function updateScopeSelectorOptions() {
     
     const currentVal = select.value;
     
-    if (select.options.length === rangesState.length + 1) {
-        let match = true;
-        for (let i = 0; i < rangesState.length; i++) {
-            if (select.options[i+1].value !== rangesState[i].start) {
-                match = false;
-                break;
-            }
-        }
-        if (match) return;
-    }
-    
+
     select.innerHTML = `<option value="all">All Scopes</option>`;
     rangesState.forEach(r => {
         const opt = document.createElement('option');
