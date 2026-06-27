@@ -144,42 +144,13 @@ print "
 <br>
 ";
 
-# 4. Configured Static Reservations Table Box
-print "
-<div class='panel panel-default' style='box-shadow: 0 1px 3px rgba(0,0,0,0.05);'>
-  <div class='panel-heading' style='background: #fafafa; border-bottom: 1px solid #eee; padding: 10px 15px;'>
-    <h3 class='panel-title' style='font-size: 1.15em; font-weight: bold; margin: 0;'>$text{'index_static_title'}</h3>
-  </div>
-  
-  <div class='table-responsive'>
-    <table class='table table-striped table-hover table-bordered ui_table' style='margin: 0;'>
-      <thead>
-        <tr class='ui_table_head'>
-          <th style='cursor: pointer;' onclick='handleStaticSort(\"ip\")'>$text{'index_ip'} <span id='ssort-icon-ip' class='fa fa-sort text-muted'></span></th>
-          <th style='cursor: pointer;' onclick='handleStaticSort(\"mac\")'>$text{'index_mac'} <span id='ssort-icon-mac' class='fa fa-sort text-muted'></span></th>
-          <th style='cursor: pointer;' onclick='handleStaticSort(\"hostname\")'>$text{'index_host'} <span id='ssort-icon-hostname' class='fa fa-sort text-muted'></span></th>
-          <th>Source</th>
-          <th>$text{'index_action'}</th>
-        </tr>
-      </thead>
-      <tbody id='statics-table-body'>
-        <tr>
-          <td colspan='5' style='text-align: center; padding: 20px; color: #888;'>
-            <i class='fa fa-spinner fa-spin'></i> Loading reservations...
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-";
+
 
 # 5. Client side SPA Logic
 print <<'JS_EOF';
 <script type='text/javascript'>
 // Global state
 var leasesState = [];
-var staticsState = [];
 var statsState = { total: 0, active: 0, free: 0, utilization: "0" };
 var rangesState = [];
 var selectedScope = "all";
@@ -187,9 +158,6 @@ var selectedScope = "all";
 var searchQuery = "";
 var sortKey = "ip";
 var sortOrder = "asc";
-
-var staticSortKey = "ip";
-var staticSortOrder = "asc";
 
 // Persistence timers
 if (window.dhcpLeaseRefreshTimer) {
@@ -211,19 +179,21 @@ function compareIPs(ipA, ipB) {
 // Sort algorithm
 function sortData(data, key, order, isIP = false) {
     return data.sort((a, b) => {
-        let valA = a[key] || '';
-        let valB = b[key] || '';
+        let valA = a[key];
+        let valB = b[key];
         
         if (isIP) {
+            valA = valA || '';
+            valB = valB || '';
             return order === 'asc' ? compareIPs(valA, valB) : compareIPs(valB, valA);
         }
         
         if (key === 'remaining' || key === 'expiry' || key === 'line') {
-            valA = Number(valA);
-            valB = Number(valB);
+            valA = valA === null ? -1 : Number(valA || 0);
+            valB = valB === null ? -1 : Number(valB || 0);
         } else {
-            valA = String(valA).toLowerCase();
-            valB = String(valB).toLowerCase();
+            valA = String(valA || '').toLowerCase();
+            valB = String(valB || '').toLowerCase();
         }
         
         if (valA < valB) return order === 'asc' ? -1 : 1;
@@ -234,7 +204,10 @@ function sortData(data, key, order, isIP = false) {
 
 // Format seconds into hh:mm:ss or expired label
 function formatRemainingTime(seconds) {
-    if (seconds <= 0) {
+    if (seconds === null || seconds < 0) {
+        return `<span class="label label-danger" style="padding: 3px 8px; border-radius: 3px; font-weight: bold; background-color: #ef4444; border-color: #ef4444;">Inactive</span>`;
+    }
+    if (seconds === 0) {
         return `<span class="label label-danger" style="padding: 3px 8px; border-radius: 3px; font-weight: bold;">Expired</span>`;
     }
     
@@ -324,12 +297,62 @@ function updateStatusAjax(isManual) {
             updateScopeSelectorOptions();
             updateStatsDisplay();
             
-            // 3. Save states & render tables
-            leasesState = data.leases;
-            staticsState = data.statics;
+            // 3. Merge active leases and static reservations
+            const rawLeases = data.leases || [];
+            const rawStatics = data.statics || [];
             
+            const staticsByMac = {};
+            const staticsByIp = {};
+            rawStatics.forEach(s => {
+                if (s.mac) staticsByMac[s.mac.toLowerCase()] = s;
+                if (s.ip) staticsByIp[s.ip.toLowerCase()] = s;
+            });
+            
+            const mergedLeases = [];
+            const matchedStaticKeys = new Set();
+            
+            rawLeases.forEach(l => {
+                const leaseMacLower = l.mac ? l.mac.toLowerCase() : '';
+                const leaseIpLower = l.ip ? l.ip.toLowerCase() : '';
+                
+                const match = staticsByMac[leaseMacLower] || staticsByIp[leaseIpLower];
+                
+                const item = Object.assign({}, l);
+                if (match) {
+                    item.type = 'static';
+                    item.source = match.source || 'config';
+                    item.file = match.file;
+                    item.line = match.line;
+                    
+                    const matchKey = (match.mac || match.ip || '').toLowerCase();
+                    if (matchKey) {
+                        matchedStaticKeys.add(matchKey);
+                    }
+                } else {
+                    item.type = 'dynamic';
+                }
+                mergedLeases.push(item);
+            });
+            
+            rawStatics.forEach(s => {
+                const matchKey = (s.mac || s.ip || '').toLowerCase();
+                if (matchKey && !matchedStaticKeys.has(matchKey)) {
+                    mergedLeases.push({
+                        ip: s.ip || '',
+                        mac: s.mac || '',
+                        hostname: s.hostname || '',
+                        remaining: null,
+                        type: 'static',
+                        inactive: true,
+                        source: s.source || 'config',
+                        file: s.file,
+                        line: s.line
+                    });
+                }
+            });
+            
+            leasesState = mergedLeases;
             renderLeasesTable();
-            renderStaticsTable();
         })
         .catch(err => console.error('Error loading leases data:', err))
         .finally(() => {
@@ -380,7 +403,6 @@ function changeScopeFilter(val) {
     selectedScope = val;
     updateStatsDisplay();
     renderLeasesTable();
-    renderStaticsTable();
 }
 
 function updateStatsDisplay() {
@@ -545,56 +567,7 @@ function renderLeasesTable() {
     tbody.innerHTML = html;
 }
 
-// Render configured static reservations
-function renderStaticsTable() {
-    const tbody = document.getElementById('statics-table-body');
-    if (!tbody) return;
-    
-    // Filter
-    let filteredStatics = staticsState.slice();
-    if (selectedScope !== 'all') {
-        const range = rangesState.find(r => r.start === selectedScope);
-        if (range) {
-            const subnet = getSubnetRange(range.start, range.netmask);
-            filteredStatics = filteredStatics.filter(s => {
-                if (!s.ip) return false;
-                const ipInt = ipToInt(s.ip);
-                return ipInt >= subnet.netInt && ipInt <= subnet.broadcastInt;
-            });
-        }
-    }
-    
-    // Sort
-    const isIP = (staticSortKey === 'ip');
-    sortData(filteredStatics, staticSortKey, staticSortOrder, isIP);
-    
-    // Update static header icons
-    updateStaticSortIcons();
-    
-    if (filteredStatics.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: #888;">No static reservations configured.</td></tr>`;
-        return;
-    }
-    
-    let html = "";
-    filteredStatics.forEach(s => {
-        html += `
-            <tr>
-                <td><b>${s.ip}</b></td>
-                <td><code style="font-size:0.95em; color:#333;">${s.mac}</code></td>
-                <td>${s.hostname ? `<b>${s.hostname}</b>` : '<i style="color:#999;">None</i>'}</td>
-                <td><span class="label label-default" style="text-transform: capitalize; font-weight: normal;">${s.source}</span></td>
-                <td>
-                    <a href="delete_reservation.cgi?mac=${encodeURIComponent(s.mac)}&ip=${encodeURIComponent(s.ip)}" class="btn btn-default btn-xs text-danger" title="Delete Reservation" onclick="return confirm('Are you sure you want to delete this static reservation?')">
-                        <i class="fa fa-trash"></i> Delete Res.
-                    </a>
-                </td>
-            </tr>
-        `;
-    });
-    
-    tbody.innerHTML = html;
-}
+
 
 // Dynamic Search Handler
 function handleSearch(val) {
@@ -613,16 +586,7 @@ function handleSort(key) {
     renderLeasesTable();
 }
 
-// Sorting for Statics
-function handleStaticSort(key) {
-    if (staticSortKey === key) {
-        staticSortOrder = (staticSortOrder === 'asc') ? 'desc' : 'asc';
-    } else {
-        staticSortKey = key;
-        staticSortOrder = 'asc';
-    }
-    renderStaticsTable();
-}
+
 
 // Update UI sort headers
 function updateSortIcons() {
@@ -638,18 +602,7 @@ function updateSortIcons() {
     });
 }
 
-function updateStaticSortIcons() {
-    ['ip', 'mac', 'hostname'].forEach(k => {
-        const el = document.getElementById(`ssort-icon-${k}`);
-        if (!el) return;
-        
-        if (staticSortKey === k) {
-            el.className = `fa fa-sort-${staticSortOrder === 'asc' ? 'asc' : 'desc'} text-primary`;
-        } else {
-            el.className = 'fa fa-sort text-muted';
-        }
-    });
-}
+
 
 // CSV Export
 function exportCSV() {
