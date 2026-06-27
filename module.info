@@ -1,6 +1,6 @@
 desc=DHCP Leases
 category=servers
-version=1.0.0
+version=1.0.1
 os_support=*-linux
 longdesc=View and manage DHCP leases issued from dnsmasq on TurnKey Core.
 syslog=1
