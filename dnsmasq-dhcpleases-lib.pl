@@ -83,7 +83,7 @@ sub parse_dnsmasq_file {
         } elsif ($item->{'type'} eq 'conf-dir') {
             my $dir_spec = $item->{'value'};
             my ($dir, @exts) = split(/,/, $dir_spec);
-            if (-d $dir && open(my $dh, $dir)) {
+            if (-d $dir && opendir(my $dh, $dir)) {
                 my @files;
                 while (my $f = readdir($dh)) {
                     next if ($f =~ /^\./ || $f =~ /~$/ || $f =~ /\.bak$/ || $f =~ /\.dpkg-[a-z]+$/);

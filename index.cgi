@@ -5,7 +5,20 @@
 use WebminCore;
 require './dnsmasq-dhcpleases-lib.pl';
 
-&ui_print_header(undef, $text{'index_title'}, "", undef, 1, 1);
+# Read version from module.info
+my $version = "1.0.0";
+if (open(my $vfh, "<", "./module.info")) {
+    while(my $line = <$vfh>) {
+        if ($line =~ /^version=(.*)$/) {
+            $version = $1;
+            $version =~ s/\r?\n//;
+            last;
+        }
+    }
+    close($vfh);
+}
+
+&ui_print_header(undef, $text{'index_title'} . " v" . $version, "", undef, 1, 1);
 
 # 1. Action/Service Toolbar & Refresh Controls
 my ($running, $enabled) = &get_service_status();
@@ -45,7 +58,11 @@ print "</span>
       <option value='30'>30 seconds</option>
       <option value='60'>60 seconds</option>
     </select>
-    <span id='refresh-spinner' style='display: none; color: #0284c7;'><i class='fa fa-spinner fa-spin'></i></span>
+    <span style='font-size: 0.9em; color: #666; margin-left: 15px;'>$text{'index_scope'}</span>
+    <select id='scope-filter-select' class='form-control input-sm' style='width: 160px; display: inline-block; margin: 0; height: 30px; padding: 2px 6px;' onchange='changeScopeFilter(this.value)'>
+      <option value='all'>All Scopes</option>
+    </select>
+    <span id='refresh-spinner' style='display: none; color: #0284c7; margin-left: 5px;'><i class='fa fa-spinner fa-spin'></i></span>
   </div>
 </div>
 ";
@@ -164,6 +181,8 @@ print <<'JS_EOF';
 let leasesState = [];
 let staticsState = [];
 let statsState = { total: 0, active: 0, free: 0, utilization: "0" };
+let rangesState = [];
+let selectedScope = "all";
 
 let searchQuery = "";
 let sortKey = "ip";
@@ -299,26 +318,11 @@ function updateStatusAjax(isManual) {
                 }
             }
             
-            // 2. Update stats cards
+            // 2. Save stats, ranges, and update display
             statsState = data.stats;
-            document.getElementById('stat-active').innerHTML = statsState.active;
-            document.getElementById('stat-free').innerHTML = statsState.free;
-            document.getElementById('stat-utilization').innerHTML = statsState.utilization + '%';
-            document.getElementById('stat-total-desc').innerHTML = `of ${statsState.total} total IPs`;
-            
-            const progress = document.getElementById('utilization-progress');
-            if (progress) {
-                progress.style.width = statsState.utilization + '%';
-                // Adjust colors based on usage levels
-                const util = parseFloat(statsState.utilization);
-                if (util > 90) {
-                    progress.style.backgroundColor = '#ef4444'; // Red
-                } else if (util > 75) {
-                    progress.style.backgroundColor = '#f59e0b'; // Orange
-                } else {
-                    progress.style.backgroundColor = '#10b981'; // Green
-                }
-            }
+            rangesState = data.ranges || [];
+            updateScopeSelectorOptions();
+            updateStatsDisplay();
             
             // 3. Save states & render tables
             leasesState = data.leases;
@@ -333,6 +337,95 @@ function updateStatusAjax(isManual) {
         });
 }
 
+function ipToInt(ip) {
+    const parts = ip.split('.').map(Number);
+    return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+}
+
+function changeScopeFilter(val) {
+    selectedScope = val;
+    updateStatsDisplay();
+    renderLeasesTable();
+    renderStaticsTable();
+}
+
+function updateStatsDisplay() {
+    let displayStats = { ...statsState };
+    
+    if (selectedScope !== 'all') {
+        const range = rangesState.find(r => r.start === selectedScope);
+        if (range) {
+            const startInt = ipToInt(range.start);
+            const endInt = ipToInt(range.end);
+            const total = endInt - startInt + 1;
+            
+            let active = 0;
+            leasesState.forEach(l => {
+                const ipInt = ipToInt(l.ip);
+                if (ipInt >= startInt && ipInt <= endInt) {
+                    active++;
+                }
+            });
+            
+            const free = Math.max(0, total - active);
+            const utilization = total > 0 ? ((active / total) * 100).toFixed(1) : "0";
+            
+            displayStats = { total, active, free, utilization };
+        }
+    }
+    
+    document.getElementById('stat-active').innerHTML = displayStats.active;
+    document.getElementById('stat-free').innerHTML = displayStats.free;
+    document.getElementById('stat-utilization').innerHTML = displayStats.utilization + '%';
+    document.getElementById('stat-total-desc').innerHTML = `of ${displayStats.total} total IPs`;
+    
+    const progress = document.getElementById('utilization-progress');
+    if (progress) {
+        progress.style.width = displayStats.utilization + '%';
+        const util = parseFloat(displayStats.utilization);
+        if (util > 90) {
+            progress.style.backgroundColor = '#ef4444';
+        } else if (util > 75) {
+            progress.style.backgroundColor = '#f59e0b';
+        } else {
+            progress.style.backgroundColor = '#10b981';
+        }
+    }
+}
+
+function updateScopeSelectorOptions() {
+    const select = document.getElementById('scope-filter-select');
+    if (!select) return;
+    
+    const currentVal = select.value;
+    
+    if (select.options.length === rangesState.length + 1) {
+        let match = true;
+        for (let i = 0; i < rangesState.length; i++) {
+            if (select.options[i+1].value !== rangesState[i].start) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return;
+    }
+    
+    select.innerHTML = `<option value="all">All Scopes</option>`;
+    rangesState.forEach(r => {
+        const opt = document.createElement('option');
+        opt.value = r.start;
+        opt.innerText = `${r.start} - ${r.end}`;
+        select.appendChild(opt);
+    });
+    
+    if ([...select.options].some(o => o.value === currentVal)) {
+        select.value = currentVal;
+    } else {
+        select.value = 'all';
+        selectedScope = 'all';
+    }
+}
+
 // Render active leases
 function renderLeasesTable() {
     const tbody = document.getElementById('leases-table-body');
@@ -340,6 +433,17 @@ function renderLeasesTable() {
     
     // Filter
     let filtered = leasesState.filter(l => {
+        if (selectedScope !== 'all') {
+            const range = rangesState.find(r => r.start === selectedScope);
+            if (range) {
+                const ipInt = ipToInt(l.ip);
+                const startInt = ipToInt(range.start);
+                const endInt = ipToInt(range.end);
+                if (ipInt < startInt || ipInt > endInt) {
+                    return false;
+                }
+            }
+        }
         const query = searchQuery.toLowerCase();
         const vendor = vendorCache[l.mac.toLowerCase()] || '';
         return l.ip.toLowerCase().includes(query) ||
@@ -414,21 +518,35 @@ function renderStaticsTable() {
     const tbody = document.getElementById('statics-table-body');
     if (!tbody) return;
     
+    // Filter
+    let filteredStatics = [...staticsState];
+    if (selectedScope !== 'all') {
+        const range = rangesState.find(r => r.start === selectedScope);
+        if (range) {
+            const startInt = ipToInt(range.start);
+            const endInt = ipToInt(range.end);
+            filteredStatics = filteredStatics.filter(s => {
+                if (!s.ip) return false;
+                const ipInt = ipToInt(s.ip);
+                return ipInt >= startInt && ipInt <= endInt;
+            });
+        }
+    }
+    
     // Sort
     const isIP = (staticSortKey === 'ip');
-    let sorted = [...staticsState];
-    sortData(sorted, staticSortKey, staticSortOrder, isIP);
+    sortData(filteredStatics, staticSortKey, staticSortOrder, isIP);
     
     // Update static header icons
     updateStaticSortIcons();
     
-    if (sorted.length === 0) {
+    if (filteredStatics.length === 0) {
         tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; padding: 20px; color: #888;">No static reservations configured.</td></tr>`;
         return;
     }
     
     let html = "";
-    sorted.forEach(s => {
+    filteredStatics.forEach(s => {
         html += `
             <tr>
                 <td><b>${s.ip}</b></td>
@@ -571,5 +689,7 @@ setInterval(() => {
 })();
 </script>
 JS_EOF
+
+print "<div style='text-align: center; margin-top: 30px; font-size: 0.85em; color: #888;'>DHCP Leases Webmin Module v$version</div>\n";
 
 &ui_print_footer("/", $text{'index'});
