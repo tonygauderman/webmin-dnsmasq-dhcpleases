@@ -94,6 +94,7 @@ foreach my $s (@$statics) {
     $sjson .= "}";
     push(@static_jsons, $sjson);
 }
+$json .= join(",", @static_jsons);
 $json .= "],";
 
 # Ranges array
