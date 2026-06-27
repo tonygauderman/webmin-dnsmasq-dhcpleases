@@ -1,5 +1,5 @@
 # Build output
-dnsmasq-dhcpleases.wbm.gz
+webmin-dnsmasq-dhcpleases.wbm.gz
 
 # OS specific files
 .DS_Store

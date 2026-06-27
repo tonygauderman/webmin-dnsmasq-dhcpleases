@@ -34,12 +34,12 @@ From the root of this repository, run the build script:
 ```bash
 python3 build.py
 ```
-This generates the Webmin package file `dnsmasq-dhcpleases.wbm.gz` in the root folder.
+This generates the Webmin package file `webmin-dnsmasq-dhcpleases.wbm.gz` in the root folder.
 
 ### 2. Install on Webmin
 1. Log in to the TurnKey Linux Webmin interface (`https://<your-server-ip>:12321/`).
 2. Navigate to **Webmin** -> **Webmin Configuration** -> **Webmin Modules** in the left sidebar.
-3. Choose **From uploaded file**, click **Choose File**, select `dnsmasq-dhcpleases.wbm.gz` from your local computer, and click **Install Module**.
+3. Choose **From uploaded file**, click **Choose File**, select `webmin-dnsmasq-dhcpleases.wbm.gz` from your local computer, and click **Install Module**.
 
 Once installed, refresh the page and navigate to **Servers** -> **DHCP Leases**.
 

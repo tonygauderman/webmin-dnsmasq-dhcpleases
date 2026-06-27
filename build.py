@@ -51,7 +51,7 @@ def build():
                 for file in files:
                     os.chmod(os.path.join(root, file), 0o644)
                     
-    output_filename = os.path.join(workspace, 'dnsmasq-dhcpleases.wbm.gz')
+    output_filename = os.path.join(workspace, 'webmin-dnsmasq-dhcpleases.wbm.gz')
     print(f"Creating archive {output_filename}...")
     
     # Create gzipped tar archive with 'dnsmasq-dhcpleases' as the root directory
@@ -65,7 +65,7 @@ def build():
         
     # Clean up temp files
     shutil.rmtree(build_temp)
-    print("Build complete! dnsmasq-dhcpleases.wbm.gz generated successfully.")
+    print("Build complete! webmin-dnsmasq-dhcpleases.wbm.gz generated successfully.")
 
 if __name__ == '__main__':
     build()
