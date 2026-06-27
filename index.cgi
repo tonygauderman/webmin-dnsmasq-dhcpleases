@@ -178,18 +178,18 @@ print "
 print <<'JS_EOF';
 <script type='text/javascript'>
 // Global state
-let leasesState = [];
-let staticsState = [];
-let statsState = { total: 0, active: 0, free: 0, utilization: "0" };
-let rangesState = [];
-let selectedScope = "all";
+var leasesState = [];
+var staticsState = [];
+var statsState = { total: 0, active: 0, free: 0, utilization: "0" };
+var rangesState = [];
+var selectedScope = "all";
 
-let searchQuery = "";
-let sortKey = "ip";
-let sortOrder = "asc";
+var searchQuery = "";
+var sortKey = "ip";
+var sortOrder = "asc";
 
-let staticSortKey = "ip";
-let staticSortOrder = "asc";
+var staticSortKey = "ip";
+var staticSortOrder = "asc";
 
 // Persistence timers
 if (window.dhcpLeaseRefreshTimer) {
@@ -253,7 +253,7 @@ function formatRemainingTime(seconds) {
 }
 
 // OUI Vendor Resolution caching proxy
-const vendorCache = {};
+var vendorCache = window.vendorCache || {};
 function resolveVendor(mac, cellId) {
     const cleanMac = mac.toLowerCase();
     
@@ -679,6 +679,7 @@ function changeAutoRefresh(val) {
     }
     if (val !== 'off') {
         const sec = parseInt(val, 10);
+        updateStatusAjax(false); // Fetch immediately on interval change
         window.dhcpLeaseRefreshTimer = setInterval(function() {
             const select = document.getElementById('auto-refresh-select');
             if (!select) {
@@ -713,10 +714,15 @@ setInterval(() => {
     if (select) {
         select.value = savedInterval;
     }
-    updateStatusAjax(false);
-    if (savedInterval !== 'off') {
-        changeAutoRefresh(savedInterval);
-    }
+    // Delay initial fetch slightly to let PJAX page transition finish,
+    // ensuring the fetch request is not aborted by the browser.
+    setTimeout(function() {
+        if (savedInterval !== 'off') {
+            changeAutoRefresh(savedInterval);
+        } else {
+            updateStatusAjax(false);
+        }
+    }, 100);
 })();
 </script>
 JS_EOF
