@@ -83,6 +83,7 @@ print $conf_fh <<'EOF';
 interface=eth0
 dhcp-range=192.168.10.50,192.168.10.150,12h
 dhcp-range=192.168.20.100,192.168.20.110,24h
+dhcp-range=10.0.0.10,10.0.0.200,255.255.0.0,8h
 dhcp-host=00:11:22:33:44:55,192.168.10.60,test-laptop
 dhcp-hostsfile=test_hostsfile
 conf-file=test_extra.conf
@@ -125,11 +126,16 @@ die "Recursive parsing failed to parse enough lines" if (scalar(@$config_lines) 
 
 # Verify config ranges
 my $ranges = &get_dhcp_ranges($config_lines);
-die "Expected 2 DHCP ranges, got " . scalar(@$ranges) if (scalar(@$ranges) != 2);
+die "Expected 3 DHCP ranges, got " . scalar(@$ranges) if (scalar(@$ranges) != 3);
 die "Range 1 start mismatch" if ($ranges->[0]->{'start'} ne '192.168.10.50');
 die "Range 1 end mismatch" if ($ranges->[0]->{'end'} ne '192.168.10.150');
+die "Range 1 netmask mismatch" if ($ranges->[0]->{'netmask'} ne '255.255.255.0');
 die "Range 2 start mismatch" if ($ranges->[1]->{'start'} ne '192.168.20.100');
 die "Range 2 end mismatch" if ($ranges->[1]->{'end'} ne '192.168.20.110');
+die "Range 2 netmask mismatch" if ($ranges->[1]->{'netmask'} ne '255.255.255.0');
+die "Range 3 start mismatch" if ($ranges->[2]->{'start'} ne '10.0.0.10');
+die "Range 3 end mismatch" if ($ranges->[2]->{'end'} ne '10.0.0.200');
+die "Range 3 netmask mismatch" if ($ranges->[2]->{'netmask'} ne '255.255.0.0');
 print "Ranges parsed successfully!\n";
 
 # Verify static reservations (including configuration files and separate hostsfile)
@@ -163,17 +169,18 @@ print "--- Testing Pool Utilization Calculations ---\n";
 my $stats = &get_pool_stats($ranges, $leases);
 # Pool 1 range: 192.168.10.50 - 150 = 101 IPs
 # Pool 2 range: 192.168.20.100 - 110 = 11 IPs
-# Total pool capacity = 101 + 11 = 112 IPs
+# Pool 3 range: 10.0.0.10 - 200 = 191 IPs
+# Total pool capacity = 101 + 11 + 191 = 303 IPs
 # Leases:
 # - 192.168.10.60 (falls in Range 1) -> 1 active lease in pool
 # - 192.168.10.70 (falls in Range 1) -> 2 active leases in pool
 # Total active leases in pool = 2
-# Free IPs = 112 - 2 = 110
-# Utilization = (2 / 112) * 100 = 1.785% -> formatted as "1.8"
-die "Total capacity calculation mismatch (expected 112, got $stats->{total})" if ($stats->{'total'} != 112);
+# Free IPs = 303 - 2 = 301
+# Utilization = (2 / 303) * 100 = 0.66% -> formatted as "0.7"
+die "Total capacity calculation mismatch (expected 303, got $stats->{total})" if ($stats->{'total'} != 303);
 die "Active leases calculation mismatch (expected 2, got $stats->{active})" if ($stats->{'active'} != 2);
-die "Free IPs calculation mismatch (expected 110, got $stats->{free})" if ($stats->{'free'} != 110);
-die "Utilization percentage mismatch (expected 1.8, got $stats->{utilization})" if ($stats->{'utilization'} ne '1.8');
+die "Free IPs calculation mismatch (expected 301, got $stats->{free})" if ($stats->{'free'} != 301);
+die "Utilization percentage mismatch (expected 0.7, got $stats->{utilization})" if ($stats->{'utilization'} ne '0.7');
 print "Pool stats verified successfully!\n";
 
 # Verify promotion creation (One-click reservation)
