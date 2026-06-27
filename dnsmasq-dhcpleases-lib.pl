@@ -164,8 +164,6 @@ sub get_dhcp_leases {
     return \@leases;
 }
 
-# get_dhcp_ranges(config_arrayref)
-# Extracts configured dhcp-range IP blocks.
 sub get_dhcp_ranges {
     my ($conf) = @_;
     my @ranges;
@@ -173,21 +171,42 @@ sub get_dhcp_ranges {
         if ($item->{'type'} eq 'dhcp-range') {
             my $val = $item->{'value'};
             my @parts = split(/,/, $val);
-            my ($start, $end);
+            
+            my @dotted_quads;
             foreach my $p (@parts) {
                 $p =~ s/^\s+//; $p =~ s/\s+$//;
                 if ($p =~ /^\d+\.\d+\.\d+\.\d+$/) {
-                    if (!defined($start)) {
-                        $start = $p;
-                    } elsif (!defined($end)) {
-                        $end = $p;
-                    }
+                    push(@dotted_quads, $p);
                 }
             }
+            
+            my ($start, $end, $netmask);
+            if (@dotted_quads >= 2) {
+                $start = $dotted_quads[0];
+                $end = $dotted_quads[1];
+                if (@dotted_quads >= 3 && $dotted_quads[2] =~ /^(128|192|224|240|248|252|254|255)\./) {
+                    $netmask = $dotted_quads[2];
+                }
+            }
+            
             if (defined($start) && defined($end)) {
+                # Fallback to classful netmask if not explicitly provided
+                if (!defined($netmask)) {
+                    my @octets = split(/\./, $start);
+                    my $first = $octets[0];
+                    if ($first < 128) {
+                        $netmask = "255.0.0.0";
+                    } elsif ($first < 192) {
+                        $netmask = "255.255.0.0";
+                    } else {
+                        $netmask = "255.255.255.0";
+                    }
+                }
+                
                 push(@ranges, {
                     'start' => $start,
-                    'end' => $end
+                    'end' => $end,
+                    'netmask' => $netmask
                 });
             }
         }

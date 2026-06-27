@@ -103,7 +103,8 @@ my @range_jsons;
 foreach my $r (@$ranges) {
     my $rjson = "{";
     $rjson .= "\"start\":\"" . &json_escape($r->{'start'}) . "\",";
-    $rjson .= "\"end\":\"" . &json_escape($r->{'end'}) . "\"";
+    $rjson .= "\"end\":\"" . &json_escape($r->{'end'}) . "\",";
+    $rjson .= "\"netmask\":\"" . &json_escape($r->{'netmask'}) . "\"";
     $rjson .= "}";
     push(@range_jsons, $rjson);
 }

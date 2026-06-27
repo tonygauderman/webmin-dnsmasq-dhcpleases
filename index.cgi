@@ -337,6 +337,40 @@ function updateStatusAjax(isManual) {
         });
 }
 
+function intToIp(num) {
+    return [
+        (num >>> 24) & 255,
+        (num >>> 16) & 255,
+        (num >>> 8) & 255,
+        num & 255
+    ].join('.');
+}
+
+function maskToCidr(mask) {
+    const maskInt = ipToInt(mask);
+    let count = 0;
+    for (let i = 0; i < 32; i++) {
+        if ((maskInt >>> i) & 1) {
+            count++;
+        }
+    }
+    return count;
+}
+
+function getSubnetRange(ip, mask) {
+    const ipInt = ipToInt(ip);
+    const maskInt = ipToInt(mask);
+    const netInt = (ipInt & maskInt) >>> 0;
+    const broadcastInt = (netInt | (~maskInt)) >>> 0;
+    
+    return {
+        net: intToIp(netInt),
+        broadcast: intToIp(broadcastInt),
+        netInt: netInt,
+        broadcastInt: broadcastInt
+    };
+}
+
 function ipToInt(ip) {
     const parts = ip.split('.').map(Number);
     return ((parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3]) >>> 0;
@@ -399,22 +433,14 @@ function updateScopeSelectorOptions() {
     
     const currentVal = select.value;
     
-    if (select.options.length === rangesState.length + 1) {
-        let match = true;
-        for (let i = 0; i < rangesState.length; i++) {
-            if (select.options[i+1].value !== rangesState[i].start) {
-                match = false;
-                break;
-            }
-        }
-        if (match) return;
-    }
-    
+
     select.innerHTML = `<option value="all">All Scopes</option>`;
     rangesState.forEach(r => {
         const opt = document.createElement('option');
         opt.value = r.start;
-        opt.innerText = `${r.start} - ${r.end}`;
+        const subnet = getSubnetRange(r.start, r.netmask);
+        const cidr = maskToCidr(r.netmask);
+        opt.innerText = `${subnet.net}/${cidr} (${r.start} - ${r.end})`;
         select.appendChild(opt);
     });
     
@@ -444,9 +470,8 @@ function renderLeasesTable() {
             const range = rangesState.find(r => r.start === selectedScope);
             if (range) {
                 const ipInt = ipToInt(l.ip);
-                const startInt = ipToInt(range.start);
-                const endInt = ipToInt(range.end);
-                if (ipInt < startInt || ipInt > endInt) {
+                const subnet = getSubnetRange(range.start, range.netmask);
+                if (ipInt < subnet.netInt || ipInt > subnet.broadcastInt) {
                     return false;
                 }
             }
@@ -530,12 +555,11 @@ function renderStaticsTable() {
     if (selectedScope !== 'all') {
         const range = rangesState.find(r => r.start === selectedScope);
         if (range) {
-            const startInt = ipToInt(range.start);
-            const endInt = ipToInt(range.end);
+            const subnet = getSubnetRange(range.start, range.netmask);
             filteredStatics = filteredStatics.filter(s => {
                 if (!s.ip) return false;
                 const ipInt = ipToInt(s.ip);
-                return ipInt >= startInt && ipInt <= endInt;
+                return ipInt >= subnet.netInt && ipInt <= subnet.broadcastInt;
             });
         }
     }
