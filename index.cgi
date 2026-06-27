@@ -339,7 +339,7 @@ function updateStatusAjax(isManual) {
 
 function ipToInt(ip) {
     const parts = ip.split('.').map(Number);
-    return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3];
+    return ((parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3]) >>> 0;
 }
 
 function changeScopeFilter(val) {
@@ -350,7 +350,7 @@ function changeScopeFilter(val) {
 }
 
 function updateStatsDisplay() {
-    let displayStats = { ...statsState };
+    let displayStats = Object.assign({}, statsState);
     
     if (selectedScope !== 'all') {
         const range = rangesState.find(r => r.start === selectedScope);
@@ -418,7 +418,14 @@ function updateScopeSelectorOptions() {
         select.appendChild(opt);
     });
     
-    if ([...select.options].some(o => o.value === currentVal)) {
+    let hasCurrent = false;
+    for (let i = 0; i < select.options.length; i++) {
+        if (select.options[i].value === currentVal) {
+            hasCurrent = true;
+            break;
+        }
+    }
+    if (hasCurrent) {
         select.value = currentVal;
     } else {
         select.value = 'all';
@@ -519,7 +526,7 @@ function renderStaticsTable() {
     if (!tbody) return;
     
     // Filter
-    let filteredStatics = [...staticsState];
+    let filteredStatics = staticsState.slice();
     if (selectedScope !== 'all') {
         const range = rangesState.find(r => r.start === selectedScope);
         if (range) {
