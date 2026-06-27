@@ -5,7 +5,20 @@
 use WebminCore;
 require './dnsmasq-dhcpleases-lib.pl';
 
-&ui_print_header(undef, $text{'index_title'}, "", undef, 1, 1);
+# Read version from module.info
+my $version = "1.0.0";
+if (open(my $vfh, "<", "./module.info")) {
+    while(my $line = <$vfh>) {
+        if ($line =~ /^version=(.*)$/) {
+            $version = $1;
+            $version =~ s/\r?\n//;
+            last;
+        }
+    }
+    close($vfh);
+}
+
+&ui_print_header(undef, $text{'index_title'} . " v" . $version, "", undef, 1, 1);
 
 # 1. Action/Service Toolbar & Refresh Controls
 my ($running, $enabled) = &get_service_status();
@@ -676,5 +689,7 @@ setInterval(() => {
 })();
 </script>
 JS_EOF
+
+print "<div style='text-align: center; margin-top: 30px; font-size: 0.85em; color: #888;'>DHCP Leases Webmin Module v$version</div>\n";
 
 &ui_print_footer("/", $text{'index'});
