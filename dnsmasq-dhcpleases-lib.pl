@@ -22,7 +22,7 @@ sub parse_dnsmasq_file {
     return if ($visited->{$file});
     $visited->{$file} = 1;
     
-    if (!-r $file) {
+    if (!-f $file) {
         return;
     }
     open(my $fh, "<", $file) || return;
@@ -141,7 +141,7 @@ sub parse_dhcp_host_string {
 sub get_dhcp_leases {
     my $file = $config{'leases_file'} || '/var/lib/misc/dnsmasq.leases';
     my @leases;
-    if (!-r $file) {
+    if (!-f $file) {
         return \@leases;
     }
     open(my $fh, "<", $file) || return \@leases;
@@ -220,7 +220,7 @@ sub get_static_reservations {
     foreach my $item (@$conf) {
         if ($item->{'type'} eq 'dhcp-hostsfile') {
             my $file = $item->{'value'};
-            if (-r $file && open(my $fh, "<", $file)) {
+            if (-f $file && open(my $fh, "<", $file)) {
                 my $line_no = 0;
                 while (my $line = <$fh>) {
                     $line =~ s/\r?\n//;
@@ -401,14 +401,14 @@ sub create_static_reservation {
 # Helper to delete a specific line number (0-indexed) from a file.
 sub remove_line_from_file {
     my ($file, $line_no) = @_;
-    if (!-w $file) {
-        return (0, "File is not writable");
+    if (!-f $file) {
+        return (0, "File does not exist: $file");
     }
-    open(my $fh, "<", $file) || return (0, "Cannot read file");
+    open(my $fh, "<", $file) || return (0, "Cannot read file: $file ($!)");
     my @lines = <$fh>;
     close($fh);
     
-    open(my $out, ">", $file) || return (0, "Cannot write file");
+    open(my $out, ">", $file) || return (0, "Cannot write file: $file ($!)");
     for (my $i = 0; $i < @lines; $i++) {
         next if ($i == $line_no);
         print $out $lines[$i];
@@ -483,7 +483,7 @@ sub delete_dhcp_lease {
 # Reads the target file and appends a trailing newline if it does not end with one.
 sub ensure_file_ends_with_newline {
     my ($file) = @_;
-    return if (!-f $file || -z $file || !-w $file);
+    return if (!-f $file || -z $file);
     open(my $fh, "<", $file) || return;
     my $content = do { local $/; <$fh> };
     close($fh);
