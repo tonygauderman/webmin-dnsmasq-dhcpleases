@@ -1,0 +1,3 @@
+dnsmasq_conf=Path to dnsmasq configuration file,8
+leases_file=Path to DHCP leases file,8
+dnsmasq_service=Systemd service name,0

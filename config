@@ -1,0 +1,3 @@
+dnsmasq_conf=/etc/dnsmasq.conf
+leases_file=/var/lib/misc/dnsmasq.leases
+dnsmasq_service=dnsmasq
