@@ -94,7 +94,19 @@ foreach my $s (@$statics) {
     $sjson .= "}";
     push(@static_jsons, $sjson);
 }
-$json .= join(",", @static_jsons);
+$json .= "],";
+
+# Ranges array
+$json .= "\"ranges\":[";
+my @range_jsons;
+foreach my $r (@$ranges) {
+    my $rjson = "{";
+    $rjson .= "\"start\":\"" . &json_escape($r->{'start'}) . "\",";
+    $rjson .= "\"end\":\"" . &json_escape($r->{'end'}) . "\"";
+    $rjson .= "}";
+    push(@range_jsons, $rjson);
+}
+$json .= join(",", @range_jsons);
 $json .= "]";
 
 $json .= "}";

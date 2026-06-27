@@ -22,6 +22,7 @@ index_export=Export CSV
 index_search=Search / Filter:
 index_refresh=Refresh
 index_auto_refresh=Auto Refresh:
+index_scope=Scope:
 index_static_title=Configured Static Reservations
 index_no_statics=No static reservations configured.
 index_reserve=Reserve IP
