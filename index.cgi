@@ -679,6 +679,7 @@ function changeAutoRefresh(val) {
     }
     if (val !== 'off') {
         const sec = parseInt(val, 10);
+        updateStatusAjax(false); // Fetch immediately on interval change
         window.dhcpLeaseRefreshTimer = setInterval(function() {
             const select = document.getElementById('auto-refresh-select');
             if (!select) {
@@ -713,10 +714,15 @@ setInterval(() => {
     if (select) {
         select.value = savedInterval;
     }
-    updateStatusAjax(false);
-    if (savedInterval !== 'off') {
-        changeAutoRefresh(savedInterval);
-    }
+    // Delay initial fetch slightly to let PJAX page transition finish,
+    // ensuring the fetch request is not aborted by the browser.
+    setTimeout(function() {
+        if (savedInterval !== 'off') {
+            changeAutoRefresh(savedInterval);
+        } else {
+            updateStatusAjax(false);
+        }
+    }, 100);
 })();
 </script>
 JS_EOF
