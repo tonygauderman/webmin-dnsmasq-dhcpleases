@@ -15,7 +15,15 @@ my $hostname = $in{'hostname'};
 # Sanitize and validate inputs
 $mac =~ s/[^0-9a-f:]//g;
 $ip =~ s/[^0-9\.]//g;
-$hostname =~ s/[^a-zA-Z0-9\-\.]//g if (defined($hostname));
+
+if (defined($hostname)) {
+    $hostname =~ s/^\s+//; $hostname =~ s/\s+$//;
+    if ($hostname eq 'undefined' || $hostname eq 'null' || $hostname =~ /^unnamed$/i || $hostname eq '') {
+        $hostname = undef;
+    } else {
+        $hostname =~ s/[^a-zA-Z0-9\-\.]//g;
+    }
+}
 
 if ($mac !~ /^([0-9a-f]{2}:){5}[0-9a-f]{2}$/) {
     &error("Invalid MAC address: $mac");
