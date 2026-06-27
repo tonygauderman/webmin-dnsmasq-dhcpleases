@@ -352,6 +352,10 @@ sub service_action {
 # Pins a MAC to an IP. Prefers dhcp-hostsfile if configured, else appends to main config.
 sub create_static_reservation {
     my ($mac, $ip, $hostname) = @_;
+    
+    # 1. Clean up any existing duplicate static reservations for this MAC or IP first
+    &delete_static_reservation($mac, $ip);
+    
     my $conf = &get_dnsmasq_config();
     
     # Check if dhcp-hostsfile is configured
@@ -368,6 +372,9 @@ sub create_static_reservation {
         my $line = "$mac,$ip";
         $line .= ",$hostname" if (defined($hostname) && $hostname ne '');
         
+        # Ensure target file ends with a trailing newline to prevent line merging
+        &ensure_file_ends_with_newline($hostsfile);
+        
         # Append to hosts file
         open(my $fh, ">>", $hostsfile) || return (0, "Cannot write to hosts file: $hostsfile");
         print $fh $line . "\n";
@@ -379,6 +386,10 @@ sub create_static_reservation {
         $line .= ",$hostname" if (defined($hostname) && $hostname ne '');
         
         my $main_conf = $config{'dnsmasq_conf'} || '/etc/dnsmasq.conf';
+        
+        # Ensure target file ends with a trailing newline to prevent line merging
+        &ensure_file_ends_with_newline($main_conf);
+        
         open(my $fh, ">>", $main_conf) || return (0, "Cannot write to config file: $main_conf");
         print $fh $line . "\n";
         close($fh);
@@ -466,6 +477,22 @@ sub delete_dhcp_lease {
     }
     
     return ($ok, $ok ? "Success" : "Lease not found in leases file");
+}
+
+# ensure_file_ends_with_newline(file)
+# Reads the target file and appends a trailing newline if it does not end with one.
+sub ensure_file_ends_with_newline {
+    my ($file) = @_;
+    return if (!-f $file || -z $file || !-w $file);
+    open(my $fh, "<", $file) || return;
+    my $content = do { local $/; <$fh> };
+    close($fh);
+    
+    if (length($content) > 0 && substr($content, -1) ne "\n") {
+        open(my $afh, ">>", $file) || return;
+        print $afh "\n";
+        close($afh);
+    }
 }
 
 1;
